@@ -1,15 +1,37 @@
 use std::fmt::Display;
 
 use super::{long::LongNote, short::ShortNote};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use colored::{ColoredString, Colorize};
 use inquire::Select;
+use ptree::TreeItem;
 use serde;
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub enum Note {
     Short(ShortNote),
     Long(LongNote),
+}
+
+impl TreeItem for Note {
+    type Child = Self;
+    fn write_self<W: std::io::Write>(
+        &self,
+        f: &mut W,
+        style: &ptree::Style,
+    ) -> std::io::Result<()> {
+        match *self {
+            Self::Long(ref note) => note.write_self(f, style),
+            Self::Short(ref note) => note.write_self(f, style),
+        }
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
+        match *self {
+            Self::Long(ref note) => note.children(),
+            Self::Short(ref note) => note.children(),
+        }
+    }
 }
 
 impl Note {
@@ -36,6 +58,7 @@ impl Note {
         }
     }
 }
+
 pub enum NoteType {
     Short,
     Long,

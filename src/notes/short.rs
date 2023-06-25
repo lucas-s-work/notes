@@ -1,9 +1,10 @@
-use super::note::NoteState;
+use super::note::{Note, NoteState};
 use anyhow::Result;
 use colored::{ColoredString, Colorize};
 use inquire::{Confirm, DateSelect, Select, Text};
+use ptree::TreeItem;
 use serde;
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct ShortNote {
@@ -26,6 +27,21 @@ impl Display for UpdateChoice {
             UpdateChoice::Due => write!(f, "Update or Set Due"),
             UpdateChoice::State => write!(f, "Update State"),
         }
+    }
+}
+
+impl TreeItem for ShortNote {
+    type Child = Note;
+    fn write_self<W: std::io::Write>(
+        &self,
+        f: &mut W,
+        style: &ptree::Style,
+    ) -> std::io::Result<()> {
+        write!(f, "{}", style.paint(self.render()))
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Note]> {
+        Cow::from(vec![])
     }
 }
 

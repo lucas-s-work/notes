@@ -1,18 +1,21 @@
 use std::{
+    borrow::Cow,
     fmt::{Display, Error},
     fs,
     path::Path,
 };
 
 use anyhow::{bail, Result};
-use inquire::{InquireError, Select};
+use inquire::{InquireError, Select, Text};
+use ptree::{print_tree, TreeItem};
 
-use super::note::{Note, NoteType};
+use super::note::Note;
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub enum ViewState {
     Add,
     View,
+    Tree,
     Main,
     Remove,
     Exit,
@@ -27,15 +30,33 @@ impl Display for ViewState {
             ViewState::View => write!(f, "View notes"),
             ViewState::Main => write!(f, "Goto main menu"),
             ViewState::Exit => write!(f, "Exit"),
-            ViewState::Update(index) => Err(Error),
+            ViewState::Update(_) => Err(Error),
+            ViewState::Tree => write!(f, "View note tree"),
         }
     }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct View {
+    name: String,
     notes: Vec<Note>,
     state: ViewState,
+}
+
+impl TreeItem for View {
+    type Child = Note;
+
+    fn write_self<W: std::io::Write>(
+        &self,
+        f: &mut W,
+        style: &ptree::Style,
+    ) -> std::io::Result<()> {
+        write!(f, "{}", style.paint(&self.name))
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Self::Child]> {
+        Cow::from(self.notes.clone())
+    }
 }
 
 const VIEW_FILE_PATH: &str = "./notes_view.json";
@@ -50,14 +71,16 @@ impl View {
             Ok(loaded_view)
         } else {
             Ok(View {
+                name: Text::new("Enter name for notes:").prompt()?,
                 notes: Vec::new(),
                 state: ViewState::Main,
             })
         }
     }
 
-    pub fn new_from_vec(notes: Vec<Note>) -> View {
+    pub fn new_from_vec(name: &str, notes: Vec<Note>) -> View {
         View {
+            name: name.to_string(),
             notes: notes,
             state: ViewState::Main,
         }
@@ -85,6 +108,7 @@ impl View {
             ViewState::View => self.render_view_notes(),
             ViewState::Remove => self.render_remove_note(),
             ViewState::Update(index) => self.render_update_note(index),
+            ViewState::Tree => self.render_tree(),
             ViewState::Exit => {
                 self.save()?;
                 Ok(())
@@ -97,7 +121,7 @@ impl View {
 
         // don't show the option to view notes if we don't have any
         if self.notes.len() > 0 {
-            options.push(ViewState::View);
+            options.append(&mut vec![ViewState::View, ViewState::Tree]);
         };
         let mut other_options = vec![ViewState::Add, ViewState::Remove, ViewState::Exit];
         options.append(&mut other_options);
@@ -184,6 +208,11 @@ impl View {
             },
         };
 
+        self.to_menu()
+    }
+
+    fn render_tree(&mut self) -> Result<()> {
+        print_tree(self)?;
         self.to_menu()
     }
 

@@ -2,12 +2,13 @@ use super::{
     note::{Note, NoteState},
     view::View,
 };
-use anyhow::{bail, Result};
+use anyhow::Result;
 use chrono::NaiveDate;
 use colored::{ColoredString, Colorize};
 use inquire::{Confirm, DateSelect, Editor, Select, Text};
+use ptree::TreeItem;
 use serde;
-use std::fmt::Display;
+use std::{borrow::Cow, fmt::Display};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct LongNote {
@@ -37,6 +38,26 @@ impl Display for UpdateChoice {
             UpdateChoice::Description => write!(f, "Update or Set Description"),
             UpdateChoice::ViewDescription => write!(f, "View Description"),
             UpdateChoice::SubNotes => write!(f, "View and Update sub Notes"),
+        }
+    }
+}
+
+impl TreeItem for LongNote {
+    type Child = Note;
+
+    fn write_self<W: std::io::Write>(
+        &self,
+        f: &mut W,
+        style: &ptree::Style,
+    ) -> std::io::Result<()> {
+        write!(f, "{}", style.paint(self.render()))
+    }
+
+    fn children(&self) -> std::borrow::Cow<[Note]> {
+        if let Some(ref children) = self.sub_notes {
+            Cow::from(children)
+        } else {
+            Cow::from(vec![])
         }
     }
 }
@@ -172,9 +193,10 @@ impl LongNote {
     }
 
     fn update_sub_notes(&mut self) -> Result<()> {
+        let view_name = self.render();
         let mut view = match self.sub_notes.clone() {
-            Some(notes) => View::new_from_vec(notes),
-            None => View::new_from_vec(vec![]),
+            Some(notes) => View::new_from_vec(&view_name, notes),
+            None => View::new_from_vec(&view_name, vec![]),
         };
 
         println!("Viewing sub notes of: {}", self.render());
